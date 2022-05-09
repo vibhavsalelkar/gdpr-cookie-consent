@@ -1322,3 +1322,20 @@ body.toplevel_page_gdpr-cookie-consent-settings-page #wpbody-content {
   .modal-header > button:focus {
 	  outline: none;
   }
+.gdpr_fetch_server_cookies {
+	color: #fff;
+	font-weight: 600;
+	background-color: #39f;
+	padding: 0.5rem 1.3rem;
+	outline: 0;
+	border: none;
+	border-radius: 0.25rem;
+}
+.gdpr_fetch_server_cookies:focus {
+	outline: none;
+	border: none;
+}
+.gdpr_fetch_button_container {
+	display: flex;
+	justify-content: flex-end;
+}

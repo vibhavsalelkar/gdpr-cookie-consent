@@ -619,6 +619,174 @@ var gen = new Vue({
             }	
             this.updateScanCookie(cookie_scan_arr );	
         },	
+        getLatestCookies: function() {
+            j(".gdpr_fetch_server_cookies").html('Please wait...' );
+            j(".gdpr_fetch_server_cookies").css('background-color', '#d8dbe0');		
+            j(".gdpr_fetch_server_cookies").attr('disabled', true);	
+            j(".gdpr_fetch_server_cookies").css('color', '#3c4b64');
+		
+            var that = this;	
+            async function runFetch() { 
+                let scannedCookies;
+                let data = {	
+                    action: 'wpl_cookie_scanner',	
+                    security: settings_obj.cookie_scan_settings.nonces.wpl_cookie_scanner,	
+                    wpl_scanner_action:'get_scanned_cookies_list',	
+                };	
+
+                await j.ajax({	
+                    url: settings_obj.cookie_scan_settings.ajax_url,	
+                    data: data,	
+                    dataType:'json',	
+                    type: 'POST',	
+                    success: function (data) {	
+                        if(data.response) {	
+                            scannedCookies = data.data;
+                        }	
+                        else{	
+                            that.success_error_message = data.message;	
+                            j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#e55353' );	
+                            j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                            j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);	
+                        }	
+                    },	
+                    error:function() {	
+                        that.success_error_message = data.message;	
+                        j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#e55353' );	
+                        j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                        j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);	
+                    }	
+                });	
+                let scannedCookiesIds = scannedCookies.map(c=>{
+                    return c.name
+                })
+
+                let status;
+                try {
+                    const res = await fetch(settings_obj.cookie_fetch_data_params.wpcc_gql_api, {
+                        method: 'POST',
+                        headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                        query: `
+                        query verifyApi($wkey: String!, $wid: Int!, $wdomain: String!, $winstance: String!) {
+                            wplverifyapi(
+                                key: $wkey
+                                id: $wid
+                                domain: $wdomain
+                                instance: $winstance
+                            )
+                        }`,
+                        variables: {
+                            wkey: settings_obj.cookie_fetch_data_params.wpcc_api_key,
+                            wid: Number(settings_obj.cookie_fetch_data_params.wpcc_product_id),
+                            wdomain: settings_obj.cookie_fetch_data_params.wpcc_domain,
+                            winstance: settings_obj.cookie_fetch_data_params.wpcc_intance_id
+                        }
+                        }),
+                    })
+                    const resData = await res.json();
+                    status = resData?.data?.wplverifyapi;
+                }catch(e){
+                    that.success_error_message = e;	
+                    j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#e55353' );	
+                    j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                    j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);                    
+                    j(".gdpr_fetch_server_cookies").html('Fetch' );	
+                    j(".gdpr_fetch_server_cookies").css('background-color', '#39f');		
+                    j(".gdpr_fetch_server_cookies").css('color', '#fff');		
+                    j(".gdpr_fetch_server_cookies").attr('disabled', false);
+                }
+                
+
+                let cookies_from_server;
+
+                await fetch(settings_obj.cookie_fetch_data_params.wpcc_gql_api, {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': status
+                    },
+                    body: JSON.stringify({
+                    query: `
+                    query fetchCookieData($scannedInput: [String]!) {
+                        fetchcookies(input: $scannedInput) {
+                            id
+                            cookieId
+                            cookieDomain
+                            categoryDescription
+                            category
+                            categoryID
+                            categorySlug
+                            duration
+                            type
+                            title
+                            content
+                        }
+                    }`,
+                    variables: {
+                        scannedInput: scannedCookiesIds
+                    }
+                    }),
+                })
+                .then((res) => res.json())
+                .then((result) => {
+                    cookies_from_server = result?.data?.fetchcookies;
+                })
+                .catch((error) => {
+                    that.success_error_message = error;	
+                    j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#e55353' );	
+                    j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                    j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);                    
+                    j(".gdpr_fetch_server_cookies").html('Fetch' );	
+                    j(".gdpr_fetch_server_cookies").css('background-color', '#39f');		
+                    j(".gdpr_fetch_server_cookies").css('color', '#fff');		
+                    j(".gdpr_fetch_server_cookies").attr('disabled', false);
+                })
+
+                let data_to_update = {	
+                    action: 'wpl_cookie_scanner',	
+                    security: settings_obj.cookie_scan_settings.nonces.wpl_cookie_scanner,	
+                    wpl_scanner_action:'sync_client_and_server_data',	
+                    cookies_received: cookies_from_server,	
+                };	
+
+                await j.ajax({
+                    url: settings_obj.cookie_scan_settings.ajax_url,	
+                    data: data_to_update,	
+                    dataType:'json',	
+                    type: 'POST',	
+                    success: function (data) {
+                        if (data.response === true) {	
+                            that.success_error_message = data.message;
+                            j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#72b85c' );	
+                            j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                            j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);
+                        } else {	
+                            that.success_error_message = data.message;	
+                            j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#e55353' );	
+                            j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                            j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);	
+                        }	
+                    },	
+                    error:function() {
+                        that.success_error_message = data.message;	
+                        j("#gdpr-cookie-consent-save-settings-alert").css('background-color', '#e55353' );	
+                        j("#gdpr-cookie-consent-save-settings-alert").fadeIn(400);	
+                        j("#gdpr-cookie-consent-save-settings-alert").fadeOut(2500);	
+                    }	
+                });	
+                that.showScanCookieList();
+                j(".gdpr_fetch_server_cookies").html('Fetch' );	
+                j(".gdpr_fetch_server_cookies").css('background-color', '#39f');		
+                j(".gdpr_fetch_server_cookies").css('color', '#fff');		
+                j(".gdpr_fetch_server_cookies").attr('disabled', false);	
+            }
+            runFetch();
+        },
         updateScanCookie(cookie_arr) {	
             var that = this;	
             var data = {	
